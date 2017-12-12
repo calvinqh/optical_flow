@@ -21,13 +21,13 @@ int main(int, char**)
 
 	//Create a window to display the images from the webcam
 	namedWindow("Webcam", CV_WINDOW_AUTOSIZE);
-
+	namedWindow("bin", CV_WINDOW_AUTOSIZE);
 	//number of frames til reseting opticalflow feature markers
-	int FRAME_COUNTER = 0; 
+	int FRAME_COUNTER_ORIGINAL = 3;
+	int FRAME_COUNTER = FRAME_COUNTER_ORIGINAL;
 
 	Mat current_frame;
 	Mat old_frame;
-
 	Mat old_gray;
 	Mat current_gray;
 	
@@ -37,72 +37,98 @@ int main(int, char**)
 	//Read first frame
 	camera >> old_frame;
 	cvtColor(old_frame, old_gray, COLOR_BGR2GRAY);
-	goodFeaturesToTrack(old_gray, points[0], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
 
-
+	vector<vector<Point>> contours;
+	vector<Vec4i> hierarchy;
 
 	while (1)
 	{
-		FRAME_COUNTER++;
+		FRAME_COUNTER--;
 		vector<uchar> status;
 		vector<float> err;
 
-		//reset good features markers
-		if (FRAME_COUNTER > 20) {
-			camera >> old_frame;
-			cvtColor(old_frame, old_gray, COLOR_BGR2GRAY);
-			goodFeaturesToTrack(old_gray, points[0], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
-			FRAME_COUNTER = 0;
-		}
-
-		
-
-		//find the features of the new frame
+		//read the latest frame
 		camera >> current_frame;
 		cvtColor(current_frame, current_gray, COLOR_BGR2GRAY);
-		goodFeaturesToTrack(current_gray, points[1], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
 
-		vector<vector<Point>> contours;
-		vector<Vec4i> hierarchy;
-		int _levels = 3 - 3;
-
+		//find contours
 		vector<vector<Point> > contours0;
 		Mat hsv;
 		Mat bin;
+		//creating hsv
 		cvtColor(current_frame, hsv, COLOR_BGR2HSV);
-		inRange(hsv, Scalar(100,150,0), Scalar(140,255,255),bin);
-
+		//thresholding hsv for blue
+		inRange(hsv, Scalar(100, 175, 0), Scalar(140, 255, 255), bin);
+		erode(bin, bin, Mat(), Point(-1, -1), 2);
+		dilate(bin, bin, Mat(), Point(-1, -1), 2);
 		findContours(bin, contours0, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
 		contours.resize(contours0.size());
 		for (size_t k = 0; k < contours0.size(); k++)
 			approxPolyDP(Mat(contours0[k]), contours[k], 3, true);
-		drawContours(current_frame, contours, _levels <= 0 ? 3 : -1, Scalar(128, 255, 255), 3, LINE_AA, hierarchy, std::abs(_levels));
-		/*
-		vector<Vec3f> circles;
-		//detect circles
-		Mat smooth_current_gray;
-		GaussianBlur(current_gray, smooth_current_gray, Size(9, 9), 2, 2);
-		HoughCircles(smooth_current_gray, circles, HOUGH_GRADIENT, 2, smooth_current_gray.rows / 4, 200, 100);
-		for (size_t i = 0; i < circles.size(); i++) {
-			Point center(cvRound(circles[i][0]), cvRound(circles[i][1]));
-			int radius = cvRound(circles[i][2]);
-			circle(current_frame, center, 3, Scalar(255, 0, 0), -1, 8, 0);
-			circle(current_frame, center, radius, Scalar(0, 0, 255), 3, 8, 0);
+
+		//reset ball marker for old frame
+		if (FRAME_COUNTER <= 0) {
+			camera >> old_frame;
+			cvtColor(old_frame, old_gray, COLOR_BGR2GRAY);
+			goodFeaturesToTrack(old_gray, points[0], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
+			FRAME_COUNTER = FRAME_COUNTER_ORIGINAL;
+
+			//find ball center for the old frame
+			vector<Point2f> t1;
+			int max = 0;
+			int max_ind = -1;
+			vector<Point> largest_contour;
+			for (int i = 0; i < contours.size(); i++) {
+				if (contours[i].size() > max) {
+					max = contours[i].size();
+					max_ind = i;
+				}
+			}
+			largest_contour = contours[max_ind];
+			Point2f cent;
+			float rad = 0;
+			minEnclosingCircle(largest_contour, cent, rad);
+			if(rad > 10) {
+				circle(current_frame, cent, rad, Scalar(10, 255, 0));
+				circle(current_frame, cent, 3, Scalar(10, 255, 255), 5);
+			}
+			t1.push_back(cent);
+			points[0] = t1;
 		}
-		*/
+
+		vector<Point2f> p1;
+		int max = 0;
+		int max_ind = -1;
+		if (contours.size() > 0) {
+			vector<Point> largest_contour;
+			for (int i = 0; i < contours.size(); i++) {
+				if (contours[i].size() > max) {
+					max = contours[i].size();
+					max_ind = i;
+				}
+			}
+			largest_contour = contours[max_ind];
+			Point2f cent;
+			float rad = 0;
+			minEnclosingCircle(largest_contour, cent, rad);
+			circle(current_frame, cent, rad, Scalar(10, 255, 0));
+			circle(current_frame, cent, 3, Scalar(10, 255, 255),5);
+			p1.push_back(cent);
+		}
+		points[1] = p1;
+
 		//calculate the optical flow from old frame to current frame
-		calcOpticalFlowPyrLK(old_frame, current_frame, points[0], points[1], status, err);
+		if (points[0].size() != 0 && points[1].size() != 0) {
+			calcOpticalFlowPyrLK(old_frame, current_frame, points[0], points[1], status, err);
+			for (int i = 0; i < points[1].size(); i++) {
+				line(current_frame, points[1][i], points[0][i], Scalar(0, 255, 0));
+				circle(current_frame, points[1][i], 3, Scalar(0, 255, 0), -1, 8);
+			}
+		}
 
 		//draw cicle on features and lines from old frame to current frame
-		/*
-		for (int i = 0; i < points[1].size(); i++) {
-			line(current_frame, points[1][i], points[0][i], Scalar(0, 255, 0));
-			circle(current_frame, points[1][i], 3, Scalar(0, 255, 0), -1, 8);
-		}
-		*/
-		//Show the image on the window
 		imshow("Webcam", current_frame);
-
+		imshow("bin", bin);
 		//Wait for a key to be pressed
 		if (waitKey(30) >= 0) break;
 	}
