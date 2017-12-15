@@ -11,8 +11,8 @@ using namespace cv;
 using namespace std;
 
 
-int alpha_slider_max = 100;
-int alpha_slider;
+int _alpha_slider_max = 100;
+int _alpha_slider;
 double alpha;
 double beta;
 
@@ -21,12 +21,12 @@ Mat src2;
 Mat dst;
 
 //edit trackbar
-static void on_trackbar(int, void*)
+static void on_num_trackers_trackbar(int, void*)
 {
-	alpha = (double)alpha_slider / alpha_slider_max;
+	alpha = (double)_alpha_slider / _alpha_slider_max;
 	beta = (1.0 - alpha);
 	addWeighted(src1, alpha, src2, beta, 0.0, dst);
-	imshow("Linear Blend", dst);
+	//imshow("Linear Blend", dst);
 }
 
 
@@ -41,7 +41,7 @@ int main(int, char**)
 	}
 
 	//Create a window to display the images from the webcam
-	namedWindow("Linear Blend", WINDOW_AUTOSIZE); // Create Window
+	//namedWindow("Linear Blend", WINDOW_AUTOSIZE); // Create Window
 	namedWindow("Webcam", CV_WINDOW_AUTOSIZE);
 	//dnamedWindow("bin", CV_WINDOW_AUTOSIZE);
 
@@ -57,10 +57,24 @@ int main(int, char**)
 	//edit trackbar
 	camera >> src1;
 	camera >> src2;
-	char TrackbarName[50];
-	alpha_slider = 0;
-	createTrackbar(TrackbarName, "Linear Blend", &alpha_slider, alpha_slider_max, on_trackbar);
-	on_trackbar(alpha_slider, 0);
+
+	//trackbar for number of features to track
+	string num_trackers_title = "Trackers";
+	_alpha_slider = 0;
+	createTrackbar(num_trackers_title, "Webcam", &_alpha_slider, _alpha_slider_max, on_num_trackers_trackbar);
+	on_num_trackers_trackbar(_alpha_slider, 0);
+
+	//trackbar for hue value
+	
+
+	//trackbar for saturation value
+
+
+	//trackbar for value value
+
+
+	//trackbar for number of frames
+
 	
 	//points on prev frame and current frame
 	vector<Point2f> points[2];
@@ -72,6 +86,9 @@ int main(int, char**)
 	vector<vector<Point>> contours;
 	vector<Vec4i> hierarchy;
 	
+	int key_pressed = 49;
+	int mode = 49;
+
 	while (1)
 	{
 		FRAME_COUNTER--;
@@ -165,11 +182,35 @@ int main(int, char**)
 			}
 		}
 
-		//draw cicle on features and lines from old frame to current frame
-		imshow("Webcam", current_frame);
+		
 		//imshow("bin", bin);
 		//Wait for a key to be pressed
-		if (waitKey(30) >= 0) break;
+		key_pressed = waitKey(5);
+		mode = ((key_pressed < 49) || (key_pressed > 55)) ? mode : key_pressed;
+		
+		//1 key is pressed
+		//show ball track frame
+		if(mode == 49)
+			imshow("Webcam", current_frame);
+
+		//2 key is pressed
+		//show hsv frame
+		if (mode == 50)
+			imshow("Webcam", hsv);
+
+		//3 key is pressed
+		//show binary frame
+		if (mode == 51)
+			imshow("Webcam", bin);
+
+		//4 key
+		//optical flow using corner detection
+		if (mode == 52) {
+			imshow("Webcam", bin);
+		}
+
+		//if user presses 7, then program ends
+		if (key_pressed == 55) break;
 	}
 
 	//Success. The program accomplished its mission and now it can go
