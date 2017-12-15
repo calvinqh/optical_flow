@@ -11,10 +11,21 @@ using namespace cv;
 using namespace std;
 
 
-int _alpha_slider_max = 100;
-int _alpha_slider;
+int _num_features_max = 100;
+int _feature_slider;
 double alpha;
 double beta;
+
+int _hue_max = 100;
+int _hue_slider;
+
+int _saturation_max = 100;
+int _saturation_slider;
+
+
+int _value_max = 100;
+int _value_slider;
+
 
 Mat src1;
 Mat src2;
@@ -23,7 +34,31 @@ Mat dst;
 //edit trackbar
 static void on_num_trackers_trackbar(int, void*)
 {
-	alpha = (double)_alpha_slider / _alpha_slider_max;
+	alpha = (double)_feature_slider / _num_features_max;
+	beta = (1.0 - alpha);
+	addWeighted(src1, alpha, src2, beta, 0.0, dst);
+	//imshow("Linear Blend", dst);
+}
+
+static void on_num_hue_trackbar(int, void*)
+{
+	alpha = (double)_hue_slider / _hue_max;
+	beta = (1.0 - alpha);
+	addWeighted(src1, alpha, src2, beta, 0.0, dst);
+	//imshow("Linear Blend", dst);
+}
+
+static void on_num_saturation_trackbar(int, void*)
+{
+	alpha = (double)_saturation_slider / _saturation_max;
+	beta = (1.0 - alpha);
+	addWeighted(src1, alpha, src2, beta, 0.0, dst);
+	//imshow("Linear Blend", dst);
+}
+
+static void on_num_value_trackbar(int, void*)
+{
+	alpha = (double)_value_slider / _value_max;
 	beta = (1.0 - alpha);
 	addWeighted(src1, alpha, src2, beta, 0.0, dst);
 	//imshow("Linear Blend", dst);
@@ -60,18 +95,28 @@ int main(int, char**)
 
 	//trackbar for number of features to track
 	string num_trackers_title = "Trackers";
-	_alpha_slider = 0;
-	createTrackbar(num_trackers_title, "Webcam", &_alpha_slider, _alpha_slider_max, on_num_trackers_trackbar);
-	on_num_trackers_trackbar(_alpha_slider, 0);
-
-	//trackbar for hue value
+	_feature_slider = 0;
+	createTrackbar(num_trackers_title, "Webcam", &_feature_slider, _num_features_max, on_num_trackers_trackbar);
+	on_num_trackers_trackbar(_feature_slider, 0);
 	
-
+	//trackbar for hue value
+	string num_hue_title = "Hue";
+	_hue_slider = 0;
+	createTrackbar(num_hue_title, "Webcam", &_hue_slider, _hue_max, on_num_hue_trackbar);
+	on_num_hue_trackbar(_hue_slider, 0);
+	
 	//trackbar for saturation value
-
-
+	string num_saturation_title = "Saturation";
+	_saturation_slider = 0;
+	createTrackbar(num_saturation_title, "Webcam", &_saturation_slider, _saturation_max, on_num_saturation_trackbar);
+	on_num_saturation_trackbar(_saturation_slider, 0);
+	
 	//trackbar for value value
-
+	string num_value_title = "Value";
+	_value_slider = 0;
+	createTrackbar(num_value_title, "Webcam", &_value_slider, _value_max, on_num_value_trackbar);
+	on_num_value_trackbar(_value_slider, 0);
+	
 
 	//trackbar for number of frames
 
