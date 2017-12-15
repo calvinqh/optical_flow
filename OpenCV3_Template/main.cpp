@@ -17,13 +17,16 @@ double alpha;
 double beta;
 
 int _hue_max = 255;
-int _hue_slider;
+int _hue_slider_max;
+int _hue_slider_min;
 
 int _saturation_max = 255;
-int _saturation_slider;
+int _saturation_slider_max;
+int _saturation_slider_min;
 
 int _value_max = 255;
-int _value_slider;
+int _value_slider_max;
+int _value_slider_min;
 
 
 Mat src1;
@@ -71,6 +74,18 @@ static void on_num_value_trackbar(int, void*)
 	*/
 }
 
+static void on_delay_trackbar(int, void*)
+{
+	/*
+	alpha = (double)_value_slider / _value_max;
+	beta = (1.0 - alpha);
+	addWeighted(src1, alpha, src2, beta, 0.0, dst);
+	//imshow("Linear Blend", dst);
+	*/
+}
+
+
+
 
 int main(int, char**)
 {
@@ -93,10 +108,13 @@ int main(int, char**)
 
 	Mat current_frame;
 	Mat old_frame;
-
-	/*Used for feature / corner tracking*/
+	/*Used for feature and corner tracking*/
 	Mat old_gray;
 	Mat current_gray;
+
+	/* Used for tracking ball or sphere*/
+	Mat hsv;
+	Mat bin;
 
 	camera >> src1;
 	camera >> src2;
@@ -107,27 +125,50 @@ int main(int, char**)
 	createTrackbar(num_trackers_title, "Webcam", &_feature_slider, _num_features_max, on_num_trackers_trackbar);
 	on_num_trackers_trackbar(_feature_slider, 0);
 	
-	//trackbar for hue value
-	string num_hue_title = "Hue";
-	_hue_slider = 140;
-	createTrackbar(num_hue_title, "Webcam", &_hue_slider, _hue_max, on_num_hue_trackbar);
-	on_num_hue_trackbar(_hue_slider, 0);
+	/*Max*/
+	//trackbar for hue value MAX
+	string num_hue_max_title = "Hue Max";
+	_hue_slider_max = 140;
+	createTrackbar(num_hue_max_title, "Webcam", &_hue_slider_max, _hue_max, on_num_hue_trackbar);
+	on_num_hue_trackbar(_hue_slider_max, 0);
 	
-	//trackbar for saturation value
-	string num_saturation_title = "Saturation";
-	_saturation_slider = 255;
-	createTrackbar(num_saturation_title, "Webcam", &_saturation_slider, _saturation_max, on_num_saturation_trackbar);
-	on_num_saturation_trackbar(_saturation_slider, 0);
-	
-	//trackbar for value value
-	string num_value_title = "Value";
-	_value_slider = 255;
-	createTrackbar(num_value_title, "Webcam", &_value_slider, _value_max, on_num_value_trackbar);
-	on_num_value_trackbar(_value_slider, 0);
-	
+	//trackbar for hue value MIN
+	string num_hue_min_title = "Hue Min";
+	_hue_slider_min = 100;
+	createTrackbar(num_hue_min_title, "Webcam ", &_hue_slider_min, _hue_max, on_num_hue_trackbar);
+	on_num_hue_trackbar(_hue_slider_min, 0);
+
+
+	//trackbar for saturation value MAX
+	string num_saturation_max_title = "Saturation Max";
+	_saturation_slider_max = 255;
+	createTrackbar(num_saturation_max_title, "Webcam", &_saturation_slider_max, _saturation_max, on_num_saturation_trackbar);
+	on_num_saturation_trackbar(_saturation_slider_max, 0);
+
+	//trackbar for saturation value MIN
+	string num_saturation_min_title = "Saturation  Min";
+	_saturation_slider_min = 155;
+	createTrackbar(num_saturation_min_title, "Webcam", &_saturation_slider_min, _saturation_max, on_num_saturation_trackbar);
+	on_num_saturation_trackbar(_saturation_slider_min, 0);
+
+
+	//trackbar for value value MAX
+	string num_value_max_title = "Value Max";
+	_value_slider_max = 255;
+	createTrackbar(num_value_max_title, "Webcam", &_value_slider_max, _value_max, on_num_value_trackbar);
+	on_num_value_trackbar(_value_slider_max, 0);
+
+	//trackbar for value value MIN
+	string num_value_min_title = "Value Min";
+	_value_slider_min = 150;
+	createTrackbar(num_value_min_title, "Webcam", &_value_slider_min, _value_max, on_num_value_trackbar);
+	on_num_value_trackbar(_value_slider_min, 0);
 
 	//trackbar for number of frames
-
+	string num_delay_title = "Delay";
+	FRAME_COUNTER_ORIGINAL = 3;
+	createTrackbar(num_delay_title, "Webcam", &FRAME_COUNTER_ORIGINAL, 40, on_delay_trackbar);
+	on_delay_trackbar(FRAME_COUNTER_ORIGINAL, 0);
 	
 	//points on prev frame and current frame
 	vector<Point2f> points[2];
@@ -147,42 +188,66 @@ int main(int, char**)
 		FRAME_COUNTER--;
 		vector<uchar> status;
 		vector<float> err;
+		vector<vector<Point> > contours0;
+		
 
 		//read the latest frame
 		camera >> current_frame;
-		//cvtColor(current_frame, current_gray, COLOR_BGR2GRAY);
-		//find contours
-		vector<vector<Point> > contours0;
-		Mat hsv;
-		Mat bin;
-		//creating hsv
-		cvtColor(current_frame, hsv, COLOR_BGR2HSV);
-		//thresholding hsv for blue
-		inRange(hsv, Scalar(100, 150, 0), Scalar(_hue_slider, _saturation_slider, _value_slider), bin);
-		//remove noise
-		erode(bin, bin, Mat(), Point(-1, -1), 2);
-		dilate(bin, bin, Mat(), Point(-1, -1), 2);
-		//find contours in filtered binary picture
-		findContours(bin, contours0, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
-		contours.resize(contours0.size());
-		//Find poly curves with given contours
-		for (size_t k = 0; k < contours0.size(); k++)
-			approxPolyDP(Mat(contours0[k]), contours[k], 3, true);
 
-		//find sphere in old frame
-		if (FRAME_COUNTER <= 0) {
-			camera >> src2;
-			//edit trackbar
-			camera >> old_frame;
-			//cvtColor(old_frame, old_gray, COLOR_BGR2GRAY);
-			//goodFeaturesToTrack(old_gray, points[0], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
-			FRAME_COUNTER = FRAME_COUNTER_ORIGINAL;
+		if(mode >=49 && mode <= 51) {
+			//find contours
+			//creating hsv
+			cvtColor(current_frame, hsv, COLOR_BGR2HSV);
+			//thresholding hsv for blue
+			inRange(hsv, Scalar(_hue_slider_min, _saturation_slider_min, _value_slider_min), Scalar(_hue_slider_max, _saturation_slider_max, _value_slider_max), bin);
+			//remove noise
+			erode(bin, bin, Mat(), Point(-1, -1), 2);
+			dilate(bin, bin, Mat(), Point(-1, -1), 2);
+			//find contours in filtered binary picture
+			findContours(bin, contours0, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+			contours.resize(contours0.size());
+			//Find poly curves with given contours
+			for (size_t k = 0; k < contours0.size(); k++)
+				approxPolyDP(Mat(contours0[k]), contours[k], 3, true);
 
-			//find ball center for the old frame
-			vector<Point2f> t1;
-			if(contours.size() > 0) {
-				int max = 0;
-				int max_ind = -1;
+			//find sphere in old frame
+			if (FRAME_COUNTER <= 0) {
+				//edit trackbar
+				camera >> old_frame;
+				//cvtColor(old_frame, old_gray, COLOR_BGR2GRAY);
+				//goodFeaturesToTrack(old_gray, points[0], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
+				FRAME_COUNTER = FRAME_COUNTER_ORIGINAL;
+
+				//find ball center for the old frame
+				vector<Point2f> t1;
+				if(contours.size() > 0) {
+					int max = 0;
+					int max_ind = -1;
+					vector<Point> largest_contour;
+					for (int i = 0; i < contours.size(); i++) {
+						if (contours[i].size() > max) {
+							max = contours[i].size();
+							max_ind = i;
+						}
+					}
+					largest_contour = contours[max_ind];
+					Point2f cent;
+					float rad = 0;
+					minEnclosingCircle(largest_contour, cent, rad);
+					if(rad > 10) {
+						circle(current_frame, cent, rad, Scalar(10, 255, 0));
+						circle(current_frame, cent, 3, Scalar(10, 255, 255), 5);
+					}
+					t1.push_back(cent);
+				}
+				points[0] = t1;
+			}
+
+			//find sphere in current frame
+			vector<Point2f> p1;
+			int max = 0;
+			int max_ind = -1;
+			if (contours.size() > 0) {
 				vector<Point> largest_contour;
 				for (int i = 0; i < contours.size(); i++) {
 					if (contours[i].size() > max) {
@@ -194,37 +259,26 @@ int main(int, char**)
 				Point2f cent;
 				float rad = 0;
 				minEnclosingCircle(largest_contour, cent, rad);
-				if(rad > 10) {
-					circle(current_frame, cent, rad, Scalar(10, 255, 0));
-					circle(current_frame, cent, 3, Scalar(10, 255, 255), 5);
-				}
-				t1.push_back(cent);
+				circle(current_frame, cent, rad, Scalar(10, 255, 0));
+				circle(current_frame, cent, 3, Scalar(10, 255, 255),5);
+				p1.push_back(cent);
 			}
-			points[0] = t1;
+			points[1] = p1;
 		}
+		else if (mode == 52) {
+			
+			cvtColor(current_frame, current_gray, COLOR_BGR2GRAY);
 
-		//find sphere in current frame
-		vector<Point2f> p1;
-		int max = 0;
-		int max_ind = -1;
-		if (contours.size() > 0) {
-			vector<Point> largest_contour;
-			for (int i = 0; i < contours.size(); i++) {
-				if (contours[i].size() > max) {
-					max = contours[i].size();
-					max_ind = i;
-				}
+			if (FRAME_COUNTER <= 0) {
+				//edit trackbar
+				camera >> old_frame;
+				cvtColor(old_frame, old_gray, COLOR_BGR2GRAY);
+				goodFeaturesToTrack(old_gray, points[0], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
+				FRAME_COUNTER = FRAME_COUNTER_ORIGINAL;
 			}
-			largest_contour = contours[max_ind];
-			Point2f cent;
-			float rad = 0;
-			minEnclosingCircle(largest_contour, cent, rad);
-			circle(current_frame, cent, rad, Scalar(10, 255, 0));
-			circle(current_frame, cent, 3, Scalar(10, 255, 255),5);
-			p1.push_back(cent);
+			goodFeaturesToTrack(current_gray, points[1], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
+			
 		}
-		points[1] = p1;
-		
 
 		//calculate the optical flow from old frame to current frame
 		if (points[0].size() != 0 && points[1].size() != 0) {
@@ -239,8 +293,9 @@ int main(int, char**)
 		//imshow("bin", bin);
 		//Wait for a key to be pressed
 		key_pressed = waitKey(5);
-		mode = ((key_pressed < 49) || (key_pressed > 55)) ? mode : key_pressed;
-		
+		mode = ((key_pressed < 49) || (key_pressed > 53)) ? mode : key_pressed;
+		cout << mode << endl;
+
 		//1 key is pressed
 		//show ball track frame
 		if(mode == 49)
@@ -259,11 +314,11 @@ int main(int, char**)
 		//4 key
 		//optical flow using corner detection
 		if (mode == 52) {
-			imshow("Webcam", bin);
+			imshow("Webcam", current_frame);
 		}
 
-		//if user presses 7, then program ends
-		if (key_pressed == 55) break;
+		//if user presses 5, then program ends
+		if (key_pressed == 53) break;
 	}
 
 	//Success. The program accomplished its mission and now it can go
