@@ -1,3 +1,5 @@
+#include "programs.h"
+
 #include <opencv2/opencv.hpp>
 #include "opencv2/imgproc.hpp"
 #include "opencv2/highgui.hpp"
@@ -9,12 +11,10 @@
 
 using namespace cv;
 using namespace std;
+using namespace Programs;
 
-
-int _num_features_max = 100;
-int _feature_slider;
-double alpha;
-double beta;
+int _num_tracker_max = 500;
+int _tracker_slider;
 
 int _hue_max = 255;
 int _hue_slider_max;
@@ -33,59 +33,6 @@ Mat src1;
 Mat src2;
 Mat dst;
 
-//edit trackbar
-static void on_num_trackers_trackbar(int, void*)
-{
-	/*
-	alpha = (double)_feature_slider / _num_features_max;
-	beta = (1.0 - alpha);
-	addWeighted(src1, alpha, src2, beta, 0.0, dst);
-	*/
-	//imshow("Linear Blend", dst);
-}
-
-static void on_num_hue_trackbar(int, void*)
-{
-	/*
-	alpha = (double)_hue_slider / _hue_max;
-	beta = (1.0 - alpha);
-	addWeighted(src1, alpha, src2, beta, 0.0, dst);
-	//imshow("Linear Blend", dst);
-	*/
-}
-
-static void on_num_saturation_trackbar(int, void*)
-{
-	/*
-	alpha = (double)_saturation_slider / _saturation_max;
-	beta = (1.0 - alpha);
-	addWeighted(src1, alpha, src2, beta, 0.0, dst);
-	//imshow("Linear Blend", dst);
-	*/
-}
-
-static void on_num_value_trackbar(int, void*)
-{
-	/*
-	alpha = (double)_value_slider / _value_max;
-	beta = (1.0 - alpha);
-	addWeighted(src1, alpha, src2, beta, 0.0, dst);
-	//imshow("Linear Blend", dst);
-	*/
-}
-
-static void on_delay_trackbar(int, void*)
-{
-	/*
-	alpha = (double)_value_slider / _value_max;
-	beta = (1.0 - alpha);
-	addWeighted(src1, alpha, src2, beta, 0.0, dst);
-	//imshow("Linear Blend", dst);
-	*/
-}
-
-
-
 
 int main(int, char**)
 {
@@ -98,34 +45,46 @@ int main(int, char**)
 	}
 
 	//Create a window to display the images from the webcam
-	//namedWindow("Linear Blend", WINDOW_AUTOSIZE); // Create Window
 	namedWindow("Webcam", CV_WINDOW_AUTOSIZE);
-	//dnamedWindow("bin", CV_WINDOW_AUTOSIZE);
 
-	//number of frames til reseting opticalflow feature markers
+	//number of frames til reset opticalflow feature markers
 	int FRAME_COUNTER_ORIGINAL = 3;
 	int FRAME_COUNTER = FRAME_COUNTER_ORIGINAL;
 
 	Mat current_frame;
 	Mat old_frame;
-	/*Used for feature and corner tracking*/
+
+	//Used for feature and corner tracking, contains the grayscaled version of frame
 	Mat old_gray;
 	Mat current_gray;
 
-	/* Used for tracking ball or sphere*/
+	/* Used for tracking sphere*/
 	Mat hsv;
 	Mat bin;
 
-	camera >> src1;
-	camera >> src2;
+	//Used for finding contours (the sphere on screen)
+	vector<vector<Point>> contours;
+	vector<Vec4i> hierarchy;
+
+	//points on prev frame and current frame (used for keeping track sphere center and/or scene corners)
+	vector<Point2f> points[2];
+
+	int key_pressed = 49;
+	/*
+	* modes for what type of frame to display
+	* 49 -> sphere tracking
+	* 50 -> HSV mode
+	* 51 -> Binary Image
+	* 52 -> Corner Tracking
+	*/
+	int mode = 49;
 
 	//trackbar for number of features to track
 	string num_trackers_title = "Trackers";
-	_feature_slider = 100;
-	createTrackbar(num_trackers_title, "Webcam", &_feature_slider, _num_features_max, on_num_trackers_trackbar);
-	on_num_trackers_trackbar(_feature_slider, 0);
+	_tracker_slider = 100;
+	createTrackbar(num_trackers_title, "Webcam", &_tracker_slider, _num_tracker_max, on_num_trackers_trackbar);
+	on_num_trackers_trackbar(_tracker_slider, 0);
 	
-	/*Max*/
 	//trackbar for hue value MAX
 	string num_hue_max_title = "Hue Max";
 	_hue_slider_max = 140;
@@ -135,10 +94,10 @@ int main(int, char**)
 	//trackbar for hue value MIN
 	string num_hue_min_title = "Hue Min";
 	_hue_slider_min = 100;
-	createTrackbar(num_hue_min_title, "Webcam ", &_hue_slider_min, _hue_max, on_num_hue_trackbar);
+	createTrackbar(num_hue_min_title, "Webcam", &_hue_slider_min, _hue_max, on_num_hue_trackbar);
 	on_num_hue_trackbar(_hue_slider_min, 0);
 
-
+	
 	//trackbar for saturation value MAX
 	string num_saturation_max_title = "Saturation Max";
 	_saturation_slider_max = 255;
@@ -164,37 +123,31 @@ int main(int, char**)
 	createTrackbar(num_value_min_title, "Webcam", &_value_slider_min, _value_max, on_num_value_trackbar);
 	on_num_value_trackbar(_value_slider_min, 0);
 
+
 	//trackbar for number of frames
 	string num_delay_title = "Delay";
 	FRAME_COUNTER_ORIGINAL = 3;
 	createTrackbar(num_delay_title, "Webcam", &FRAME_COUNTER_ORIGINAL, 40, on_delay_trackbar);
 	on_delay_trackbar(FRAME_COUNTER_ORIGINAL, 0);
 	
-	//points on prev frame and current frame
-	vector<Point2f> points[2];
+
 
 	//Read first frame
 	camera >> old_frame;
-	//cvtColor(old_frame, old_gray, COLOR_BGR2GRAY);
-
-	vector<vector<Point>> contours;
-	vector<Vec4i> hierarchy;
-	
-	int key_pressed = 49;
-	int mode = 49;
 
 	while (1)
 	{
 		FRAME_COUNTER--;
+		//used for calculating optical flow
 		vector<uchar> status;
 		vector<float> err;
+		
 		vector<vector<Point> > contours0;
 		
-
 		//read the latest frame
 		camera >> current_frame;
 
-		if(mode >=49 && mode <= 51) {
+		if(mode >=49 && mode <= 51) { //for tracking sphere, hsv space, and binary image
 			//find contours
 			//creating hsv
 			cvtColor(current_frame, hsv, COLOR_BGR2HSV);
@@ -212,14 +165,11 @@ int main(int, char**)
 
 			//find sphere in old frame
 			if (FRAME_COUNTER <= 0) {
-				//edit trackbar
 				camera >> old_frame;
-				//cvtColor(old_frame, old_gray, COLOR_BGR2GRAY);
-				//goodFeaturesToTrack(old_gray, points[0], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
 				FRAME_COUNTER = FRAME_COUNTER_ORIGINAL;
 
-				//find ball center for the old frame
-				vector<Point2f> t1;
+				//find ball center for the old frame by looking for largest contour
+				vector<Point2f> t1; //contain the center of sphere
 				if(contours.size() > 0) {
 					int max = 0;
 					int max_ind = -1;
@@ -243,8 +193,8 @@ int main(int, char**)
 				points[0] = t1;
 			}
 
-			//find sphere in current frame
-			vector<Point2f> p1;
+			//find sphere in current frame by looking for largest contour
+			vector<Point2f> p1; //will contain center of sphere
 			int max = 0;
 			int max_ind = -1;
 			if (contours.size() > 0) {
@@ -265,18 +215,18 @@ int main(int, char**)
 			}
 			points[1] = p1;
 		}
-		else if (mode == 52) {
+		else if (mode == 52) { //if user wants to track corners
 			
 			cvtColor(current_frame, current_gray, COLOR_BGR2GRAY);
 
 			if (FRAME_COUNTER <= 0) {
-				//edit trackbar
+				FRAME_COUNTER = FRAME_COUNTER_ORIGINAL;
 				camera >> old_frame;
 				cvtColor(old_frame, old_gray, COLOR_BGR2GRAY);
-				goodFeaturesToTrack(old_gray, points[0], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
+				goodFeaturesToTrack(old_gray, points[0], _tracker_slider, .01, 10, Mat(), 3, 3, 0, 0.04);
 				FRAME_COUNTER = FRAME_COUNTER_ORIGINAL;
 			}
-			goodFeaturesToTrack(current_gray, points[1], 500, .01, 10, Mat(), 3, 3, 0, 0.04);
+			goodFeaturesToTrack(current_gray, points[1], _tracker_slider, .01, 10, Mat(), 3, 3, 0, 0.04);
 			
 		}
 
@@ -290,11 +240,9 @@ int main(int, char**)
 		}
 
 		
-		//imshow("bin", bin);
 		//Wait for a key to be pressed
 		key_pressed = waitKey(5);
 		mode = ((key_pressed < 49) || (key_pressed > 53)) ? mode : key_pressed;
-		cout << mode << endl;
 
 		//1 key is pressed
 		//show ball track frame
